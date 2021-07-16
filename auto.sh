@@ -6,7 +6,7 @@ domain=$1
 
 #Setup
 echo "==========================================" | notify
-echo "\`\`\`Automated vulnerability scanner started\`\`\`" | notify
+echo "\`\`\`Scanning $domain\`\`\`" | notify
 echo "==========================================" | notify
 mkdir -p $domain $domain/subdomains $domain/scanners $domain/intel
 
@@ -29,28 +29,29 @@ rm subdomains.txt
 rm gobusterdns.txt
 cd ../../
 
-echo "\`\`\`Subdomain enumeration ended\`\`\`" | notify
+echo "\`\`\`Subdomain enumeration ended - ($domain)\`\`\`" | notify
 nikto_scan(){
 nikto -h http://$domain -o $domain/scanners/nikto.txt
-echo "\`\`\`Nikto scan ended\`\`\`" | notify
+echo "\`\`\`Nikto scan ended - ($domain)\`\`\`" | notify
 }
 nmap_scan(){
 nmap --script vuln -iL $domain/subdomains/nmap_formatted_list.txt -o $domain/scanners/nmap.txt
-echo "\`\`\`Nmap scan ended\`\`\`" | notify
+echo "\`\`\`Nmap scan ended - ($domain)\`\`\`" | notify
 }
 nuclei_scan(){
 nuclei -t ./templates/ -o $domain/scanners/nuclei.txt -l $domain/subdomains/httpx.txt
-echo "\`\`\`Nuclei scan ended\`\`\`" | notify
+echo "\`\`\`Nuclei scan ended - ($domain)\`\`\`" | notify
 }
 param_reflection(){
-python3 ./ParamSpider/paramspider.py -d $domain | sed 's/FUZZ//'  > $domain/intel/paramspider.txt
-cat paramspider.txt | Gxss  > $domain/intel/reflected_parameters.txt
-echo "\`\`\`Reflected parameters scan ended\`\`\`" | notify
+python3 ./ParamSpider/paramspider.py -d $domain -o $domain.txt
+cat output/$domain.txt | sed 's/FUZZ//' | Gxss  | sed 's/Gxss//' > $domain/intel/reflected_parameters.txt
+echo "\`\`\`Reflected parameters scan ended - ($domain)\`\`\`" | notify
 }
 xss_check(){
 dalfox file $domain/subdomains/httpx.txt --mass > $domain/scanners/dalfox.txt 
 dalfox file $domain/intel/reflected_parameters.txt --mass > $domain/scanners/dalfox_reflected.txt
-echo "\`\`\`Dalfox scan ended\`\`\`" | notify
+echo "\`\`\`Dalfox scan ended - ($domain)\`\`\`" | notify
 }
 param_reflection
 nikto_scan & nmap_scan & nuclei_scan & xss_check & wait
+echo "\`\`\`$domain scan ended\`\`\`" | notify
